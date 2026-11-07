@@ -18,6 +18,7 @@ int envmap_width, envmap_height;
 std::vector<Vec3f> envmap;
 Model duck("../duck.obj");
 
+
 struct Light {
     Light(const Vec3f &p, const float i) : position(p), intensity(i) {}
     Vec3f position;
@@ -32,7 +33,8 @@ struct Material {
     Vec3f diffuse_color;
     float specular_exponent;
 };
-
+// 参数：折射率1.5，albedo(漫反射0, 高光0.9, 反射0.1, 折射0.8)，淡蓝色，高光极强
+Material duck_mat(1.5, Vec4f(0.0, 0.9, 0.1, 0.8), Vec3f(0.8, 0.9, 1.0), 1425.);
 struct Sphere {
     Vec3f center;
     float radius;
@@ -76,7 +78,25 @@ bool scene_intersect(const Vec3f &orig, const Vec3f &dir, const std::vector<Sphe
             N = (hit - spheres[i].center).normalize();
             material = spheres[i].material;
         }
+    } 
+
+        // 检查光线是否打中鸭子模型
+    for (int i = 0; i < duck.nfaces(); i++) {
+        float dist_i;
+        if (duck.ray_triangle_intersect(i, orig, dir, dist_i) && dist_i < spheres_dist) {
+            spheres_dist = dist_i;
+            hit = orig + dir * dist_i;
+            Vec3f v0 = duck.point(duck.vert(i, 0));
+            Vec3f v1 = duck.point(duck.vert(i, 1));
+            Vec3f v2 = duck.point(duck.vert(i, 2));
+            
+            // 算面法线（需要先在 geometry.h 里加 cross 叉乘函数）
+            N = cross(v1 - v0, v2 - v0).normalize(); 
+            
+            material = duck_mat; 
+        }
     }
+    
 
     float checkerboard_dist = std::numeric_limits<float>::max();
     if (fabs(dir.y)>1e-3)  {
@@ -166,6 +186,7 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
 }
 
 int main() {
+    std::cout << "鸭子面数: " << duck.nfaces() << std::endl;
     int n = -1;
     unsigned char *pixmap = stbi_load("../envmap.jpg", &envmap_width, &envmap_height, &n, 0);
     if (!pixmap || 3!=n) {
@@ -184,6 +205,7 @@ int main() {
     Material      glass(1.5, Vec4f(0.0,  0.5, 0.1, 0.8), Vec3f(0.6, 0.7, 0.8),  125.);
     Material red_rubber(1.0, Vec4f(0.9,  0.1, 0.0, 0.0), Vec3f(0.3, 0.1, 0.1),   10.);
     Material     mirror(1.0, Vec4f(0.0, 10.0, 0.8, 0.0), Vec3f(1.0, 1.0, 1.0), 1425.);
+    Material duck_mat(1.5, Vec4f(0.0, 0.9, 0.1, 0.8), Vec3f(0.8, 0.9, 1.0), 1425.);
 
     std::vector<Sphere> spheres;
     spheres.push_back(Sphere(Vec3f(-3,    0,   -16), 2,      ivory));
@@ -195,6 +217,9 @@ int main() {
     lights.push_back(Light(Vec3f(-20, 20,  20), 1.5));
     lights.push_back(Light(Vec3f( 30, 50, -25), 1.8));
     lights.push_back(Light(Vec3f( 30, 20,  30), 1.7));
+     for (int i = 0; i < duck.nverts(); i++) {
+        duck.point(i) = duck.point(i) * 2.0f + Vec3f(3.0f, -1.0f, -5.0f);
+    }
 
     render(spheres, lights);
 
