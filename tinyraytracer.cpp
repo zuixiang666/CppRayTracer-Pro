@@ -31,8 +31,6 @@ struct Material {
     Vec3f diffuse_color;
     float specular_exponent;
 };
-// 参数：折射率1.5，albedo(漫反射0, 高光0.9, 反射0.1, 折射0.8)，淡蓝色，高光极强
-Material duck_mat(1.5, Vec4f(0.0, 0.9, 0.1, 0.8), Vec3f(0.8, 0.9, 1.0), 1425.);
 struct Sphere {
     Vec3f center;
     float radius;
@@ -58,16 +56,12 @@ Vec3f reflect(const Vec3f &I, const Vec3f &N) {
     return I - N*2.f*(I*N);
 }
 
-Vec3f refract(const Vec3f &I, const Vec3f &N, const float &refractive_index) {
-    float cosi = -std::max(-1.f, std::min(1.f, I * N));
-    float eta = 1.f / refractive_index;
-    float k = 1 - eta * eta * (1 - cosi * cosi);
-    if (k < 0) {
-        // 如果 k < 0，发生全反射，直接返回反射方向
-        return reflect(I, N); 
-    }
-    Vec3f refrdir = I * eta + N * (eta * cosi - sqrt(k));
-    return refrdir.normalize();
+Vec3f refract(const Vec3f &I, const Vec3f &N, const float eta_t, const float eta_i=1.f) { // Snell's law
+    float cosi = - std::max(-1.f, std::min(1.f, I*N));
+    if (cosi<0) return refract(I, -N, eta_i, eta_t); // if the ray comes from the inside the object, swap the air and the media
+    float eta = eta_i / eta_t;
+    float k = 1 - eta*eta*(1 - cosi*cosi);
+    return k<0 ? Vec3f(1,0,0) : I*eta + N*(eta*cosi - sqrtf(k)); // k<0 = total reflection, no ray to refract. I refract it anyways, this has no physical meaning
 }
 
 bool scene_intersect(const Vec3f &orig, const Vec3f &dir, const std::vector<Sphere> &spheres, Vec3f &hit, Vec3f &N, Material &material) {
@@ -120,7 +114,7 @@ Vec3f cast_ray(const Vec3f &orig, const Vec3f &dir, const std::vector<Sphere> &s
         float light_distance = (lights[i].position - point).norm();
 
         
-        Vec3f shadow_orig = light_dir * N < 0 ? point - N * 1e-2 : point + N * 1e-2;
+         Vec3f shadow_orig = light_dir*N < 0 ? point - N*1e-3 : point + N*1e-3; 
         Vec3f shadow_pt, shadow_N;
         Material tmpmaterial;
         if (scene_intersect(shadow_orig, light_dir, spheres, shadow_pt, shadow_N, tmpmaterial) && (shadow_pt-shadow_orig).norm() < light_distance)
